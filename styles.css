@@ -1,0 +1,10 @@
+.board {
+    display: flex;
+    flex-wrap: wrap;
+    justify-self: center;
+    align-self: center;
+}
+
+.field {
+    outline: 1px solid black;
+}
