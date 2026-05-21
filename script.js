@@ -1,81 +1,95 @@
-const size = 3;
+function createPlayer(name, mark) {
+  return { name, mark };
+}
 
-const Gameboard = (function (size) {
-  const fields = Array(size * size);
-  const markField = function (position, mark) {
-    if (fields[position]) {
-      return console.log("Already assigned");
+function createGameboard() {
+  const fields = Array(9);
+  fields.fill(undefined);
+
+  const getField = function (index) {
+    return fields[index];
+  };
+
+  let numberOfTurns = 0;
+
+  const markField = function (index, mark) {
+    if (getField(index)) {
+      return false;
     } else {
-      fields[position] = mark;
-      lastMove = position;
-      numberOfMarks++;
+      fields[index] = mark;
+      numberOfTurns += 1;
       return true;
     }
   };
 
-  const getField = function (position) {
-    return fields[position];
-  };
-
   const reset = function () {
     fields.fill(undefined);
-    numberOfMarks = 0;
+    numberOfTurns = 0;
   };
 
-  let lastMove;
-  const getLastMove = () => {
-    return lastMove;
-  };
-
-  let numberOfMarks = 0;
   const isFull = () => {
-    return numberOfMarks === fields.length;
+    return numberOfTurns === fields.length;
   };
 
-  return { markField, getField, reset, getLastMove, isFull };
-})(size);
-
-function createPlayer(name, mark, Gameboard, game) {
-  const play = function (position) {
-    if (Gameboard.markField(position, this.mark)) {
-      game.changeTurn();
-    }
-  };
-
-  return { name, mark, play };
+  return { getField, markField, isFull, reset };
 }
 
-function createGame(gameboard) {
-  const victoryCondition = size;
-  let playerTurn = "x";
-  const getPlayerTurn = () => {
-    return playerTurn;
-  };
-  function changeTurn() {
-    checkGameState();
-    if (playerTurn === "x") {
-      playerTurn = "o";
-    } else {
-      playerTurn = "x";
-    }
-  }
+function createGame() {
+  const gameboard = createGameboard();
 
-  const checkGameState = function () {
+  const players = [
+    createPlayer("Player X", "X"),
+    createPlayer("Player O", "O"),
+  ];
+
+  const setPlayerName = function (index, name) {
+    players[index].name = name;
+  };
+
+  let currentPlayer = players[0];
+
+  const getCurrentPlayer = () => currentPlayer;
+
+  const reset = function () {
+    gameboard.reset();
+    currentPlayer = players[0];
+  };
+
+  const changeTurn = function () {
+    currentPlayer = currentPlayer === players[0] ? players[1] : players[0];
+  };
+
+  let latestMoveIndex = undefined;
+
+  const handleMove = function (index) {
+    if (gameboard.markField(index, currentPlayer.mark)) {
+      latestMoveIndex = index;
+      displayHandler.render();
+      checkVictory();
+      // Move this up if you want player X to always start
+      changeTurn();
+    }
+  };
+
+  const checkVictory = function () {
     let gameOver = false;
     let tie = false;
 
+    // Get latest field and mark
+    let lastMoveMark = gameboard.getField(latestMoveIndex);
+
     // Check horizontal
     let continuousCount = 0;
-    for (let index = 0; index < size * size; index++) {
-      if (index % size === 0) {
+    for (let index = 0; index < 9; index++) {
+      if (index % 3 === 0) {
         continuousCount = 0;
       }
       const element = gameboard.getField(index);
-      if (element === playerTurn) {
+      if (element === lastMoveMark) {
         continuousCount++;
       }
 
-      if (continuousCount == victoryCondition) {
+      if (continuousCount === 3) {
         gameOver = true;
         break;
       }
@@ -83,10 +97,10 @@ function createGame(gameboard) {
 
     // Check vertical
     continuousCount = 0;
-    for (let index = 0; index < size; index++) {
+    for (let index = 0; index < 3; index++) {
       const firstRowVal = gameboard.getField(index);
-      const secondRowVal = gameboard.getField(index + size);
-      const thirdRowVal = gameboard.getField(index + 2 * size);
+      const secondRowVal = gameboard.getField(index + 3);
+      const thirdRowVal = gameboard.getField(index + 2 * 3);
       if (
         firstRowVal &&
         secondRowVal &&
@@ -100,12 +114,11 @@ function createGame(gameboard) {
     }
 
     // Check diagonals
-    let lastMove = gameboard.getLastMove();
-    let lastMoveMark = gameboard.getField(lastMove);
+
     // Check main diagonal
     let winMain = true;
-    for (let i = 0; i < size; i++) {
-      if (gameboard.getField(i * (size + 1)) !== lastMoveMark) {
+    for (let i = 0; i < 3; i++) {
+      if (gameboard.getField(i * (3 + 1)) !== lastMoveMark) {
         winMain = false;
         break;
       }
@@ -114,8 +127,8 @@ function createGame(gameboard) {
 
     // Check anti-diagonal
     let winAnti = true;
-    for (let i = 1; i <= size; i++) {
-      if (gameboard.getField(i * (size - 1)) !== lastMoveMark) {
+    for (let i = 1; i <= 3; i++) {
+      if (gameboard.getField(i * (3 - 1)) !== lastMoveMark) {
         winAnti = false;
         break;
       }
@@ -128,100 +141,83 @@ function createGame(gameboard) {
       gameOver = true;
     }
 
+    let status;
+
     if (tie) {
-      gameboard.reset();
-      return 2;
+      status = 2;
     } else if (gameOver) {
-      gameboard.reset();
-      return 1;
-    } else return 0;
+      status = 1;
+    } else status = 0;
+
+    let message = "";
+    if (status === 1) {
+      message = `Game over. Player ${currentPlayer.name} with mark ${currentPlayer.mark} won.`;
+    } else if (status === 2) {
+      message = "Tie";
+    } else message = "";
+
+    if (status) {
+      reset();
+      displayHandler.render();
+    }
+    displayHandler.showGameStatus(message);
   };
 
-  return { getPlayerTurn, changeTurn, checkGameState };
+  const gameInterface = {
+    handleMove,
+    reset,
+    setPlayerName,
+  };
+
+  const displayHandler = createDisplayHandler(gameboard, gameInterface);
+  displayHandler.addListeners();
+
+  return gameInterface;
 }
 
 function createDisplayHandler(gameboard, game) {
-  const initialize = function () {
-    const width = 500;
-    const body = document.querySelector("body");
+  const fields = document.querySelectorAll(".field");
+  const board = document.querySelector(".board");
+  const txtMessage = document.querySelector(".message");
 
-    // Create board
-    const board = document.createElement("div");
-    board.classList.add("board");
-    board.style.width = width.toString() + "px";
-    body.append(board);
-    const fieldWidth = 500 / size;
-
-    // Create fields
-    for (let index = 0; index < size * size; index++) {
-      const field = document.createElement("div");
-      field.classList.add("field");
-      field.id = index;
-      field.style.width = fieldWidth.toString() + "px";
-      field.style.height = fieldWidth.toString() + "px";
-      field.style.backgroundColor = "grey";
-      board.appendChild(field);
-    }
-  };
-
-  function reset() {
-    const fields = document.querySelectorAll(".field");
-    fields.forEach((element, index) => {
-      element.textContent = "";
+  const addListeners = function () {
+    // Add event listener to reset button
+    const btnReset = document.querySelector(".reset");
+    btnReset.addEventListener("click", () => {
+      game.reset();
+      render();
     });
-  }
 
-  // Mark field on board and update gameboard state
-  function play(event) {
-    // check if the field is free
-    const clickedField = parseInt(event.target.id);
-    const isEmpty = gameboard.getField(clickedField) === undefined;
+    // Add event listener to change player names inputs
+    const txtNames = document.querySelectorAll(".player-name");
+    txtNames.forEach((input) => {
+      input.addEventListener("change", (event) => {
+        const index = event.target.id === "playerX" ? 0 : 1;
+        game.setPlayerName(index, event.target.value);
+      });
+    });
 
-    if (isEmpty) {
-      // get correct
-      const mark = game.getPlayerTurn();
-
-      // update gameboard object
-      gameboard.markField(clickedField, mark);
-      // change player
-      game.changeTurn();
-      // update displayed board
-      event.target.textContent = mark;
-
-      const gameState = game.checkGameState();
-      if (gameState === 1) {
-        alert(
-          `Game over. Player with mark ${mark} won. Confirm to reset the game.`,
-        );
-        reset();
-      } else if (gameState === 2) {
-        alert("TIE!!!");
-        reset();
-      }
-    }
-  }
-
-  const fillFields = function () {
-    // Fill fields
-    const fields = document.querySelectorAll(".field");
     fields.forEach((element, index) => {
-      element.addEventListener("click", play);
-      const value = gameboard.getField(index);
-      element.textContent = value;
+      element.addEventListener("click", (event) => {
+        game.handleMove(Number(event.target.id));
+      });
     });
   };
 
-  const addMark = function (field, mark) {
-    const fieldDiv = document.querySelector(`.field:nth-of-type(${field})`);
-    fieldDiv.textContent = mark;
+  const render = function () {
+    // UPDATE FIELDS
+    for (let index = 0; index < 9; index++) {
+      const field = gameboard.getField(index);
+      const element = document.getElementById(index);
+      element.textContent = field ? field : "";
+    }
   };
 
-  return { initialize, addMark, fillFields };
+  const showGameStatus = function (message) {
+    txtMessage.textContent = message;
+  };
+
+  return { render, addListeners, showGameStatus };
 }
 
-game = createGame(Gameboard);
-displayHandler = createDisplayHandler(Gameboard, game);
-displayHandler.initialize();
-displayHandler.fillFields();
-player1 = createPlayer("P1", "x", Gameboard, game);
-player2 = createPlayer("P2", "o", Gameboard, game);
+const game = createGame();
